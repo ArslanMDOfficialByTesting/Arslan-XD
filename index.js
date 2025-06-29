@@ -104,12 +104,6 @@ async function connectToWA() {
   })
 
   conn.ev.on('creds.update', saveCreds)
-}
-
-//===================START============================
-;(async () => {
-  await downloadSession()
-  await connectToWA()
 })()
 
 //=============readstatus=======
