@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: Arslan-XD
+    env: node
+    plan: free
+    region: oregon
+    branch: main
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: SESSION_ID
+        value: ARSL~
+      - key: PORT
+        value: 9090
+      - key: PREFIX
+        value: .
