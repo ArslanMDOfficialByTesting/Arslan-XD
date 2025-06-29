@@ -2,8 +2,10 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  Browsers
+  Browsers,
+  fetchLatestBaileysVersion // Yeh add karna zaroori tha
 } = require('@whiskeysockets/baileys')
+
 const fs = require('fs')
 const path = require('path')
 const P = require('pino')
@@ -22,12 +24,10 @@ async function downloadSession() {
   const sessionPath = path.join(__dirname, 'sessions', 'creds.json')
   
   try {
-    // Create sessions directory if not exists
     if (!fs.existsSync(path.dirname(sessionPath))) {
       fs.mkdirSync(path.dirname(sessionPath), { recursive: true })
     }
 
-    // Skip if session already exists
     if (fs.existsSync(sessionPath)) return true
 
     if (!config.SESSION_ID) {
@@ -35,9 +35,7 @@ async function downloadSession() {
       process.exit(1)
     }
 
-    // Extract MEGA file ID (remove ARSL~ prefix if exists)
     const sessdata = config.SESSION_ID.replace(/^ARSL~/, '')
-    
     console.log('📥 Downloading session from MEGA...')
     const filer = File.fromURL(`https://mega.nz/file/${sessdata}`)
     
@@ -65,7 +63,6 @@ async function connectToWhatsApp() {
   try {
     console.log(`♻️ Connecting Arslan-XD (Attempt ${retryCount + 1}/${MAX_RETRIES})`)
 
-    // Download session if using ARSL~ session
     if (config.SESSION_ID && config.SESSION_ID.startsWith('ARSL~')) {
       await downloadSession()
     }
@@ -74,19 +71,22 @@ async function connectToWhatsApp() {
       path.join(__dirname, 'sessions')
     )
 
-    const { version } = await fetchLatestBaileysVersion()
+    // Yahan se fix shuru hota hai
+    const { version, isLatest } = await fetchLatestBaileysVersion()
+    if (!isLatest) {
+      console.log('⚠️ Using outdated Baileys version, consider updating')
+    }
 
     const conn = makeWASocket({
       logger: P({ level: 'silent' }),
       printQRInTerminal: true,
       browser: Browsers.macOS('Safari'),
       auth: state,
-      version,
+      version: version, // Yahan version use hua hai
       markOnlineOnConnect: true,
       getMessage: async () => ({})
     })
 
-    // Connection event handlers
     conn.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update
 
@@ -102,7 +102,7 @@ async function connectToWhatsApp() {
 
         if (reason !== DisconnectReason.loggedOut && retryCount < MAX_RETRIES) {
           retryCount++
-          const delay = Math.min(3000 * retryCount, 30000) // Max 30 sec delay
+          const delay = Math.min(3000 * retryCount, 30000)
           console.log(`⌛ Retrying in ${delay/1000} seconds...`)
           setTimeout(connectToWhatsApp, delay)
         } else {
@@ -116,19 +116,48 @@ async function connectToWhatsApp() {
         console.log('✅ Arslan-XD Connected Successfully')
 
         // Load plugins
-        loadPlugins(conn)
+        fs.readdirSync("./plugins/").forEach((plugin) => {
+          if (path.extname(plugin).toLowerCase() === ".js") {
+            try {
+              require("./plugins/" + plugin)
+              console.log(`✅ Loaded plugin: ${plugin}`)
+            } catch (pluginError) {
+              console.error(`❌ Failed to load plugin ${plugin}:`, pluginError.message)
+            }
+          }
+        })
 
         // Send connection message
-        sendConnectionMessage(conn)
+        try {
+          const up = `*╭──────────────●●►*
+> *➺ Arslan-XD ᴄᴏɴɴᴇᴄᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ! ᴛʏᴘᴇ .ᴍᴇɴᴜ ᴛᴏ ᴄᴏᴍᴍᴀɴᴅ*
+> *❁ ᴊᴏɪɴ ᴏᴜʀ ᴡʜᴀᴛsᴀᴘᴘ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴜᴘᴅᴀᴛᴇs:*
+*https://whatsapp.com/channel/0029VarfjW04tRrmwfb8x306*
+*BOT ACTIVE NOW ENJOY♥️🪄*\n\n*PREFIX: ${prefix}*
+*╰──────────────●●►*`
+          
+          await conn.sendMessage(
+            conn.user.id, 
+            { 
+              image: { url: MENU_IMG }, 
+              caption: up 
+            }
+          )
+        } catch (sendError) {
+          console.error("❌ Failed to send connection message:", sendError.message)
+        }
       }
     })
 
-    // Save credentials when updated
     conn.ev.on('creds.update', saveCreds)
 
     // Message handler
     conn.ev.on('messages.upsert', async ({ messages }) => {
-      await handleMessages(conn, messages[0])
+      const m = messages[0]
+      if (!m.message) return
+      
+      // Yahan tumhara message handling logic aayega
+      // Jaise commands process karna, auto-react, etc.
     })
 
     return conn
@@ -144,62 +173,7 @@ async function connectToWhatsApp() {
   }
 }
 
-//===================PLUGIN LOADER============================
-function loadPlugins(conn) {
-  console.log('♻️ Loading plugins...')
-  
-  const pluginsDir = path.join(__dirname, 'plugins')
-  if (!fs.existsSync(pluginsDir)) {
-    console.log('❌ Plugins directory not found')
-    return
-  }
-
-  fs.readdirSync(pluginsDir).forEach(file => {
-    if (path.extname(file).toLowerCase() === '.js') {
-      try {
-        require(path.join(pluginsDir, file))
-        console.log(`✅ Loaded plugin: ${file}`)
-      } catch (error) {
-        console.error(`❌ Failed to load plugin ${file}:`, error.message)
-      }
-    }
-  })
-}
-
-//===================CONNECTION MESSAGE============================
-async function sendConnectionMessage(conn) {
-  try {
-    const connectionMsg = `*╭──────────────●●►*
-> *➺ Arslan-XD ᴄᴏɴɴᴇᴄᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!*
-> *❁ ᴛʏᴘᴇ ${prefix}ᴍᴇɴᴜ ғᴏʀ ᴄᴏᴍᴍᴀɴᴅs*
-> *❁ ᴊᴏɪɴ �ᴏᴜʀ ᴄʜᴀɴɴᴇʟ:*
-*https://whatsapp.com/channel/0029VarfjW04tRrmwfb8x306*
-*╰──────────────●●►*`
-
-    await conn.sendMessage(
-      conn.user.id,
-      { 
-        image: { url: MENU_IMG },
-        caption: connectionMsg 
-      }
-    )
-  } catch (error) {
-    console.error('❌ Failed to send connection message:', error.message)
-  }
-}
-
-//===================MESSAGE HANDLER============================
-async function handleMessages(conn, message) {
-  if (!message.message) return
-
-  // Your existing message handling logic here
-  // Add your command processing, auto-react, etc.
-}
-
 //===================START THE BOT============================
-connectToWhatsApp().then(() => {
-  console.log('🤖 Arslan-XD is initializing...')
-}).catch(error => {
-  console.error('❌ Bot failed to start:', error)
-  process.exit(1)
-})
+connectToWhatsApp()
+  .then(() => console.log('🤖 Arslan-XD is running...'))
+  .catch(err => console.error('❌ Bot failed to start:', err))
