@@ -104,7 +104,7 @@ async function connectToWA() {
   })
 
   conn.ev.on('creds.update', saveCreds)
-})()
+}
 
 //=============readstatus=======
 
