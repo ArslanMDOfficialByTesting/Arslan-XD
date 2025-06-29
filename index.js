@@ -1,37 +1,34 @@
 const {
-default: makeWASocket,
-useMultiFileAuthState,
-DisconnectReason,
-jidNormalizedUser,
-getContentType,
-fetchLatestBaileysVersion,
-Browsers
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  jidNormalizedUser,
+  getContentType,
+  fetchLatestBaileysVersion,
+  Browsers
 } = require('@whiskeysockets/baileys')
 
-
 const l = console.log
-const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
 const fs = require('fs')
+const path = require('path')
 const ff = require('fluent-ffmpeg')
 const P = require('pino')
 const config = require('./config')
+const { File } = require('megajs')
+const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
 const rankCommand = require('./plugins/rank')
 const qrcode = require('qrcode-terminal')
 const StickersTypes = require('wa-sticker-formatter')
 const util = require('util')
-const { sms,downloadMediaMessage } = require('./lib/msg')
+const { sms, downloadMediaMessage } = require('./lib/msg')
 const axios = require('axios')
-const { File } = require('megajs')
 const { fromBuffer } = require('file-type')
 const bodyparser = require('body-parser')
 const { tmpdir } = require('os')
 const Crypto = require('crypto')
-const path = require('path')
 const prefix = config.PREFIX
-
 const ownerNumber = ['923237045919']
 
- 
 //===================SESSION-AUTH============================
 const downloadSession = async () => {
   const sessionPath = __dirname + '/sessions/creds.json'
@@ -57,15 +54,6 @@ const downloadSession = async () => {
 //===================WHATSAPP CONNECTION============================
 async function connectToWA() {
   console.log("CONNECTING Arslan-XD 🧬...")
-  const {
-    useMultiFileAuthState,
-    DisconnectReason,
-    default: makeWASocket,
-    fetchLatestBaileysVersion,
-    Browsers
-  } = require('@whiskeysockets/baileys')
-  const P = require('pino')
-
   const { state, saveCreds } = await useMultiFileAuthState(__dirname + '/sessions/')
   const { version } = await fetchLatestBaileysVersion()
 
