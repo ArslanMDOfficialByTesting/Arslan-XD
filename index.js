@@ -31,69 +31,99 @@ const prefix = config.PREFIX
 
 const ownerNumber = ['923237045919']
 
+ 
 //===================SESSION-AUTH============================
-if (!fs.existsSync(__dirname + '/sessions/creds.json')) {
-if(!config.SESSION_ID) return console.log('Please add your session to SESSION_ID env !!')
-const sessdata = config.SESSION_ID.replace("ARSL~", '');
-const filer = File.fromURL(`https://mega.nz/file/${sessdata}`)
-filer.download((err, data) => {
-if(err) throw err
-fs.writeFile(__dirname + '/sessions/creds.json', data, () => {
-console.log("SESSION DOWNLOADED COMPLETED ✅")
-})})}
+const downloadSession = async () => {
+  const sessionPath = __dirname + '/sessions/creds.json'
+  if (!fs.existsSync(sessionPath)) {
+    if (!config.SESSION_ID) {
+      console.log('❌ Please add your SESSION_ID in environment!');
+      process.exit(1)
+    }
+    const sessdata = config.SESSION_ID.replace("ARSL~", '')
+    const filer = File.fromURL(`https://mega.nz/file/${sessdata}`)
+    console.log("📥 Downloading session from MEGA...")
+    const buffer = await new Promise((resolve, reject) => {
+      filer.download((err, data) => {
+        if (err) return reject(err)
+        resolve(data)
+      })
+    })
+    fs.writeFileSync(sessionPath, buffer)
+    console.log("✅ SESSION DOWNLOADED COMPLETED")
+  }
+}
 
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 9090;
-
-
+//===================WHATSAPP CONNECTION============================
 async function connectToWA() {
-console.log("CONNECTING Arslan-XD 🧬...");
-const { state, saveCreds } = await useMultiFileAuthState(__dirname + '/sessions/')
-var { version } = await fetchLatestBaileysVersion()
+  console.log("CONNECTING Arslan-XD 🧬...")
+  const {
+    useMultiFileAuthState,
+    DisconnectReason,
+    default: makeWASocket,
+    fetchLatestBaileysVersion,
+    Browsers
+  } = require('@whiskeysockets/baileys')
+  const P = require('pino')
 
-const conn = makeWASocket({
-        logger: P({ level: 'silent' }),
-        printQRInTerminal: false,
-        browser: Browsers.macOS("Firefox"),
-        syncFullHistory: true,
-        auth: state,
-        version
-        })
-    
-conn.ev.on('connection.update', (update) => {
-const { connection, lastDisconnect } = update
-if (connection === 'close') {
-if (lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut) {
-connectToWA()
-}
-} else if (connection === 'open') {
-console.log('♻️ INSTALLING PLUGINS FILES PLEASE WAIT... 🪄')
-const path = require('path');
-fs.readdirSync("./plugins/").forEach((plugin) => {
-if (path.extname(plugin).toLowerCase() == ".js") {
-require("./plugins/" + plugin);
-}
-});
-console.log('PLUGINS FILES INSTALL SUCCESSFULLY ✅')
-console.log('Arslan-XD CONNECTED TO WHATSAPP ENJOY ✅')
+  const { state, saveCreds } = await useMultiFileAuthState(__dirname + '/sessions/')
+  const { version } = await fetchLatestBaileysVersion()
 
-let up = `*╭──────────────●●►*
-> *➺ Arslan-XD ᴄᴏɴɴᴇᴄᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʏ ᴛʏᴘᴇ .ᴍᴇɴᴜ ᴛᴏ ᴄᴏᴍᴍᴀɴᴅ ʟɪsᴛ ᴄʀᴇᴀᴛᴇᴅ ʙʏ your ArslanMD Official✅*
+  const conn = makeWASocket({
+    logger: P({ level: 'silent' }),
+    printQRInTerminal: false,
+    browser: Browsers.macOS("Firefox"),
+    auth: state,
+    version
+  })
 
-> *❁ᴊᴏɪɴ ᴏᴜʀ ᴡʜᴀᴛsᴀᴘᴘ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴜᴘᴅᴀᴛᴇs 
+  conn.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update
 
+    if (connection === 'close') {
+      let reasonCode = lastDisconnect?.error?.output?.statusCode
+      console.log("❌ Disconnected. Reason:", reasonCode)
+      if (reasonCode !== DisconnectReason.loggedOut) {
+        console.log("🔁 Reconnecting...")
+        connectToWA()
+      } else {
+        console.log("❌ Logged out from WhatsApp. You need to re-authenticate.")
+      }
+    }
+
+    if (connection === 'open') {
+      console.log('♻️ INSTALLING PLUGINS FILES PLEASE WAIT... 🪄')
+      fs.readdirSync("./plugins/").forEach((plugin) => {
+        if (path.extname(plugin).toLowerCase() === ".js") {
+          require("./plugins/" + plugin)
+        }
+      })
+
+      console.log('✅ PLUGINS INSTALLED SUCCESSFULLY')
+      console.log('✅ Arslan-XD CONNECTED TO WHATSAPP')
+
+      let up = `*╭──────────────●●►*
+> *➺ Arslan-XD ᴄᴏɴɴᴇᴄᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ! ᴛʏᴘᴇ .ᴍᴇɴᴜ ᴛᴏ ᴄᴏᴍᴍᴀɴᴅ*
+
+> *❁ ᴊᴏɪɴ ᴏᴜʀ ᴡʜᴀᴛsᴀᴘᴘ ᴄʜᴀɴɴᴇʟ ғᴏʀ ᴜᴘᴅᴀᴛᴇs:*
 *https://whatsapp.com/channel/0029VarfjW04tRrmwfb8x306*
 
-*YOUR BOT ACTIVE NOW ENJOY♥️🪄*\n\n*PREFIX: ${prefix}*
+*BOT ACTIVE NOW ENJOY♥️🪄*\n\n*PREFIX: ${prefix}*
 
-*╰──────────────●●►*`;
-conn.sendMessage(conn.user.id, { image: { url: config.MENU_IMG }, caption: up })
+*╰──────────────●●►*`
+      conn.sendMessage(conn.user.id, { image: { url: config.MENU_IMG }, caption: up })
+    }
+  })
 
+  conn.ev.on('creds.update', saveCreds)
 }
-})
-conn.ev.on('creds.update', saveCreds)  
-        
+
+//===================START============================
+;(async () => {
+  await downloadSession()
+  await connectToWA()
+})()
+
 //=============readstatus=======
 
 conn.ev.on('messages.upsert', async(mek) => {
